@@ -1,7 +1,9 @@
 //#include <adklib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 
 char* system_str(const char* cmd) {
     FILE *fp;
@@ -11,7 +13,6 @@ char* system_str(const char* cmd) {
 
     fp = popen(cmd, "r");
     if (fp == NULL) {
-        printf("Failed to run command\n");
         exit(1);
     }
 
@@ -20,7 +21,6 @@ char* system_str(const char* cmd) {
         char *new_output = realloc(output, output_size + buffer_length + 1);
         if (new_output == NULL) {
             free(output);
-            printf("Memory allocation failed\n");
             exit(1);
         }
         output = new_output;
@@ -80,9 +80,60 @@ char **split_line(char *line)
     return tokens;
 }
 
+int check_builtin(char ** args)
+{
+    if (0==strcmp(args[0],"exit"))
+    {
+        exit(0);
+    }
+
+    if (0==strcmp(args[0],"help"))
+    {
+        printf("adksh. - adk shell. simply shell in C\n");
+        return 1;
+    }
+
+    if (0==strcmp(args[0],"cd"))
+    {
+        if (args[1]==0) args[1]=getenv("HOME");
+        chdir(args[1]);
+        return 1;
+    }
+
+    return 0;
+}
+
+
 int execute(char ** args)
 {
-    return system(args[0]);
+    if (check_builtin(args)) return 0;
+
+    pid_t pid, wpid;
+    int status;
+
+    pid = fork();
+    if (pid == 0)
+    {
+        if (execvp(args[0], args) == -1) perror("adksh");
+        exit(EXIT_FAILURE);
+    }
+
+    else if (pid < 0)
+    {
+        perror("adksh");
+    }
+
+    else
+    {
+        do
+        {
+            wpid = waitpid(pid, &status, WUNTRACED);
+        }
+
+        while (!WIFEXITED(status) && !WIFSIGNALED(status));
+    }
+
+    return 1;
 }
 
 void loop(void)
@@ -95,6 +146,7 @@ void loop(void)
     {
         PREFIX;
         line = read_line();
+        if (line[0]==0 || line[0]=='\n') continue;
         args = split_line(line);
         status = execute(args);
 
