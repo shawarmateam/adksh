@@ -1,4 +1,4 @@
-all: build run
+all: build
 
 build:
 	mkdir -p ./bin
@@ -6,3 +6,6 @@ build:
 
 run: build
 	./bin/main
+
+install: build
+	cp ./bin/main /adkbin/adksh

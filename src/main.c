@@ -59,7 +59,7 @@ char *read_line()
     return line;
 }
 
-char **split_line(char *line)
+char **split_line(char *line, int *count)
 {
     line[strcspn(line, "\n")] = 0;
 
@@ -76,6 +76,7 @@ char **split_line(char *line)
         token = strtok(NULL, " ");
     }
     tokens[position] = NULL;
+    *count = position;
 
     return tokens;
 }
@@ -104,12 +105,18 @@ int check_builtin(char ** args)
 }
 
 
-int execute(char ** args)
+int execute(char ** args, int len)
 {
     if (check_builtin(args)) return 0;
 
     pid_t pid, wpid;
     int status;
+    char isFG = 0x00;
+    if (0==strcmp(args[len-1],"&"))
+    {
+        isFG=0xff;
+        args[len-1]=0;
+    }
 
     pid = fork();
     if (pid == 0)
@@ -123,7 +130,7 @@ int execute(char ** args)
         perror("adksh");
     }
 
-    else
+    else if (!isFG)
     {
         do
         {
@@ -147,15 +154,38 @@ void loop(void)
         PREFIX;
         line = read_line();
         if (line[0]==0 || line[0]=='\n') continue;
-        args = split_line(line);
-        status = execute(args);
+
+        int len=0;
+        args = split_line(line, &len);
+        status = execute(args, len);
 
         free(line);
         free(args);
     }
 }
 
-int main() {
+int main(int argc, char ** argv) {
+    if (argc==1)
     loop();
+
+    else if (argc==2)
+    {
+        if (0==strcmp(argv[1],"-h"))
+        {
+            char * helpcmd[] = {"help", 0};
+            return execute(helpcmd, 1);
+        }
+    }
+
+    else if (argc==3)
+    {
+        if (0==strcmp(argv[1],"-c"))
+        {
+            int len=0;
+            char ** args = split_line(argv[2], &len);
+            return execute(args, len);
+        }
+    }
+
     return 0;
 }
